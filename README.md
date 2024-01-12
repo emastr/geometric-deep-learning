@@ -1,0 +1,2 @@
+# geometric-deep-learning
+Exercises
