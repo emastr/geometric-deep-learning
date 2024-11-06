@@ -1,0 +1,204 @@
+\documentclass{article}
+
+\title{Equivariant Neural Boundary Operators}
+%\author{Emanuel Ström}
+\date{}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{comment}
+\newtheorem{note}{Note}
+\newtheorem{lemma}{Lemma}
+\newtheorem{example}{Example}
+\newtheorem{definition}{Definition}
+\newcommand{\manifold}{\mathcal{M}}
+\newcommand{\tspace}{\mathcal{T}}
+\newcommand{\Rn}[1]{\mathbb{R}^{#1}}
+\newcommand{\Ltwo}{\mathcal{L}}
+\newcommand{\sobolev}{\mathcal{H}}
+\newcommand{\dif}[1]{\mathrm{d}#1}
+\newcommand{\fhtwo}{\mathrm{FH2}}
+\newcommand{\group}{\mathcal{G}}
+\newcommand{\euclid}[1]{\mathrm{E}(#1)}
+\newcommand{\manispace}[1]{\mathrm{Emb}({#1})}
+\newcommand{\GL}[1]{\mathrm{GL}(\Rn{#1})}
+\newcommand{\data}{\mathcal{D}}
+\newcommand{\expectp}[1]{\mathbb{E}\left[#1\right]}
+\newcommand{\yspace}{\mathcal{Y}}
+\newcommand{\xspace}{\mathcal{X}}
+\newcommand{\circle}{\mathbb{S}}
+
+\begin{document}
+    \maketitle
+
+
+    \section{Introduction}
+    There has recently been a surge in deep-learning based methods for solving partial differential equations (PDE). In this context, a neural network is used to parameterize the PDE solution. Some research like physics-informed neural nets (PINN) focuses on designing unsupervised or semisupervised approaches, in which the PDE (or its weak form) is incorporated into the loss function. 
+    
+    \emph{Operator learning} is a more recent direction that focuses on architecture design. The main philosophy is that the neural network parameterizes not the PDE solution, but the \emph{solution operator}. The setting is typically quite general, but for the purpose of this work we will narrow it down to a certain type of problem:
+    \begin{note}
+        Suppose a manifold $\manifold$ of codimension $1$, embedded in $\Rn{d}$. We will study a generic class of geometry-dependent operators $A[\;\cdot\; ;\manifold]\colon \sobolev_s(\manifold)^d\to\Ltwo(\manifold)^d$, where the equation
+        \[
+            A[x;\manifold] = y
+        \]    
+        has a unique solution $x\in \sobolev_s(\manifold)^d$ for any $y\in \Ltwo(\manifold)^d$. 
+    \end{note}
+    In particular, we will study the \emph{Fredholm second-kind integral equations}:
+    \[
+        A[x; \manifold](t) = x(t) - \int_\manifold k(t,s; \manifold)x(s)\dif{s},
+    \]
+    Where $k(\cdot,\cdot;\manifold)\colon \manifold\times \manifold\to \GL{d}$ is a \emph{pairwise potential}. Typically, $k$ depends on local first order properties of $\manifold$ like the normal direction. We refer to this class of operators as $\fhtwo(\manifold,d)$. $\fhtwo$-operators are often equivariant wrt. the euclidean group $\euclid{d}$, in the sense that
+    \begin{definition}
+        A family of operatos $A[\cdot; \manifold]\colon\sobolev_s(\manifold)^d\to\Ltwo(\manifold)^d$ is equivariant to $\euclid{d}$ if, for any $g=(r,h)\in \euclid{d}$ where $r$ is a rotation and $h$ a translation, 
+        \[  
+            A[gx; g\manifold] = gA[x; \manifold],
+        \]
+        where $(gx)(t) = r(x(g^{-1}t))$ and $g\manifold=\{gt\colon t\in \manifold\}$.
+    \end{definition} 
+    $A^{-1}$ is equivariant in the same way. Equivalently, $A$ can be seen as a map between curves $\gamma = \{(t,x(t))\}_{t\in\manifold}$ of the fiber bundle $\manifold\times \Rn{d}$. The group action $g\gamma$ is then $g$ transforming the entire fiber bundle as $g(t,x) = (gt, rx)$, restricted to $\gamma$, and is a more natural interpretation of $A[g\gamma]=gA[\gamma]$.
+
+
+    
+    \section{Equivariant Neural Operators}
+    The goal in this project is to develop a neural architecture that respects euclidean equivariance and can evaluate on \emph{arbitrary} geometries $\manifold$. The data input (and output) for our architecture will be a generalized curve:
+    \[
+        \gamma = \{(t, x(t))\colon t\in\manifold\}.
+    \] 
+    we seek an operator $\Phi$ that takes any $\gamma$, so that $g\Phi[\gamma] = \Phi[g\gamma]$ for any $g\in \euclid{d}$. 
+    %\begin{note}
+    %    The kernel $k$ is only defined on $\manifold$, so results from the course cannot be used to show that $A^{-1}$ is a convolution. Even in the case when a representation on the form
+     %   \[
+      %      A^{-1}y(t) = \int_{\manifold}k^{-1}(t,s; {\manifold})x(s)\dif{s}
+       % \]
+        %exists, $k^{-1}(t,s;\manifold)$ depends non-locally on $\manifold$. Meaning, there might not exist a description that only uses local features of $\manifold$ such as curvature, normal directions etc. at $s$ and $t$. 
+    %\end{note}
+    \begin{note}
+        Let $K_\manifold$ define integration with the kernel $k(\cdot,\cdot;\manifold)$, and suppose $\|K_\manifold\|<1$ for all $\manifold$. Then there is a trivial composition of computable integrals over $\manifold$, that can approximate the inverse to arbitrary precision:
+        \[
+            \Phi[y, \manifold] := \sum_{\ell=1}^L (-K_\manifold)^\ell y
+        \]
+        Moreover, the above operator can be written (by changing order of integration) in terms of an equivalent kernel $k_L(s,t;\manifold)$: 
+        \[
+            k_L(t,s; \manifold) = \sum_{\ell=0}^L (-1)^\ell\int_{\manifold^\ell}k(t,u_1)k(u_1,u_2)\dots k(u_{\ell-1},s)\dif{u_1}\dif{u_2}\dots\dif{u_{\ell-1}}
+        \]
+    \end{note}
+    The equivalent inverse kernel $k_L$ cannot in general be written as a function of local properties of $\manifold$. Furthermore, it requires the evaluation of $L\sim \log(1/\epsilon)$ successive integrals to reach an error level of $\epsilon$, which is often expensive since $k$ decays slowly with respect to the distance $\|s-t\|$ between its arguments.
+    
+    Suppose $\data = \{(\manifold_n, x_n, y_n)\}_{n=1}^N$ is a data set and $y_n = A[x_n; \manifold_n]$ for each $n$. Our objective is to learn the map $x_n = A^{-1}[y_n; \manifold_n]$. We seek a model on the form 
+    \[
+        \Phi[y;\manifold] = \sum_{n=1}^{N}\alpha_n(y;\manifold)x_n, 
+    \]
+
+    \clearpage
+    \paragraph{Gaussian Process Regression (GPR):}
+    Recall that for a Gaussian Process $Y$ over $x$, with mean $0$ and kernel $q$ we have that $Y(x)\mid \pmb Y$ where $\pmb Y = Y(\pmb x)$ with $\pmb x= (x_1, \dots, x_N)$ is normal with mean
+    \[
+        \expectp{Y(x)\mid \pmb Y} = q(x;\pmb x)^TQ(\pmb x;\pmb x)^{-1}\pmb Y,
+    \]
+    where $Q(\pmb x; \pmb x)$ is an $N\times N$ matrix with entries $q(x_m, x_n)$ and $q(x;\pmb x)$ is a vector with entries $q(x,x_n)$. 
+    
+    \paragraph{GPR for Hilbert Spaces:}
+    In the case where $Y$ is a Gaussian process taking values in a Hilbert Space $\yspace$, we have for $x,z\in X$ and $h,f\in Y$ that 
+    \[
+        \mathrm{Cov}(\langle f, Y(x)\rangle, \langle h, Y(z)\rangle) = q(x,z)[f,h]
+    \]
+    if the spectrum of $q(x,y)$ decays fast, there is an ON-basis $\{\varphi_\ell\}_{\ell=1}^L\subset Y$ so that
+    \[
+        q(x,z)[g,h]\approx  q_{L}(x,z)[f,h]:=\sum_{1\leq i,j\leq L}q(x,z)[\varphi_i,\varphi_j]\langle f, \varphi_i\rangle\langle h,\varphi_j\rangle.
+    \]
+    Let $\pmb Y_L := (\langle \varphi_\ell, Y(x_n)\rangle)_{\ell, n}$. Then, $\langle \varphi_k, Y(x)\rangle\mid \pmb Y_L$ is a normal with expectation
+    \[
+        \expectp{\langle \varphi_k, Y\rangle\mid \pmb Y_L} = \sum_{n=1}^N\sum_{\ell,\ell'=1}^L q(x,x_n)[\varphi_k,\varphi_\ell]Q^{-1}_{\ell,\ell',n,m} \langle \varphi_{\ell'} , Y(x_m)\rangle.
+    \]
+    The matrix multiplication $Q_{\ell,\ell',n,m}^{-1}\langle \varphi_{\ell'} , Y(x_m)\rangle$ is computed at training. 
+
+
+    %\begin{comment}
+    \paragraph{Equivariant GPR:} Let $N=1$ for simplicity (one-shot learning). Let $g^*$ be the adjoint of $g$ with respect to $\langle \cdot,\cdot\rangle$.  We now compute the conditional expectation of $gY$ projected to the basis $\varphi_\ell$. To simplify, we will initially denote $\overline Y = \sum_{\ell,\ell'}Q^{-1}_{\ell,\ell'}\langle \varphi_{\ell'},Y(x_1)\rangle\varphi_{\ell}$. Then,:
+    \[
+        \expectp{\langle \varphi_\ell, gY(x)\rangle\mid Y_1} = \expectp{\langle g^*\varphi_\ell, Y(x)\rangle\mid Y_1} = q(x,x_1)[g^*\varphi_\ell, \overline{Y}]
+    \]
+    For equivariance, we must then have
+    \[
+        \expectp{\langle \varphi_\ell, Y(gx)\rangle\mid Y_1} =q(gx,x_1)[\varphi_{\ell},\overline Y] = q(x,x_1)\left[g^*\varphi_\ell, \overline Y\right].
+    \]
+    In the case of $\euclid{d}$ with the $\Ltwo^2$-inner product, $g^*=g^{-1}$. Hence, a sufficient condition for input-output equivariance is that 
+    \[
+    q(gx,z)[u,v]=q(x,z)[g^{-1}u,v].
+    \]
+    By symmetry of $q$, we infer $q(gx,z)[u, v]=q(x,z)[u, g^{-1}v]$. Suppose now that $q(x,z)[u, v] = \langle u, Q(x,z)v\rangle$ where $Q(x,z)$ is a linear operator. Then, the above (plus symmetry) translates to
+    \[
+        \langle u, Q(gx, hz)v\rangle = \langle u, gQ(x, hz)v\rangle =\langle u,gQ(x, z)h^{-1}v\rangle,
+    \]
+    for any $g,h \in \euclid{d}$, $x, z \in \xspace$ and $u,v\in \yspace$. Hence, $Q(gx,hz) = gQ(x,z)h^{-1}$. 
+
+    \paragraph{Equivariant Kernels:}
+    We give some examples of equivariant kernels.
+    
+    \begin{example} Let $d$ be a distance measure that satisfies $d(gx,z)=d(x,g^{-1}z)$ for all $g\in\euclid{d}$ and $x,y\in \xspace$. Define the shift $g(x,y)$ that minimizes this distance:
+    \[
+        \widehat g(x,y) = \mathrm{argmin}\{d(gx, y)\colon g\in \euclid{d}\}
+    \]
+    and let $\widehat d(x,y)=d(\widehat g(x,y)x,y)$. Note that $\widehat d$ is invariant to $\euclid{d}$, since $x$ is in $\mathrm{Orb}_{\euclid{d}}(gx)$. Moreover, $\widehat{g}(gx,y)=\widehat{g}(x,y)g^{-1}$, since
+    \[
+        d(g(x,y)g^{-1}gx, y) = d(g(x,y)x,y)=\widehat{d}(x,y).
+    \]
+    A similar argument shows that $\widehat g(x,hy)=h\widehat g (x, y)$. Hence, $\widehat g(gx, hy)=h\widehat g(x,y) g^{-1}$. Now, define $Q(x,y):=\phi(\widehat d(x,z))\widehat g(x,y)^{-1}$ for some decreasing function $\phi$.
+    \[
+        Q(gx,hy) = \widehat g(gx, hy)^{-1}\phi(\widehat d(gx, hy)) = g\left[\widehat{g}(x, y)\varphi(\widehat{d}(x,y))\right]h^{-1} = gQ(x,y)h^{-1}.
+    \]
+    The correlation between vectors $u$ and $v$ associated with points $x$ and $y$ is obtained by finding $gx$ in the orbit of $x$ that best aligns to $y$, and then measuring the resulting alignment between $gu$ and $v$. The final correlation is a rescaling of the alignment by a function of the distance between $x$ and $y$ times the alignment of $u$ and $v$. 
+    \end{example}
+    %\begin{example}
+    %    Suppose $\varphi_\ell$ is steerable with matrix $D(g)$ so that $g\varphi_\ell = \sum_{\ell'=1}^L D_{\ell,\ell'}(g)\varphi_{\ell'}$. Now, $Q$ is an $L\times L$ matrix with entries $Q_{\ell,\ell'}(x,z) = Q(x,z)[\varphi_\ell,\varphi_{\ell'}]$. Then,
+    %    \[
+    %        Q(gx,hz) = D(g)Q(x,z)D^{-1}(h),\quad\text{for all}\quad g,h\in\euclid{d},\quad x,z\in \xspace
+    %    \]
+    %    Then, example 1 produces a weighted matrix
+    %    \[
+    %        Q(x,y) = \phi(\widehat d(x,y))D(\widehat g(x, y)^{-1}).
+    %    \]
+    %\end{example}
+    \begin{example}
+    Alternatively, consider
+        \[
+            Q(x, y) = \widehat{g}(x, x_0)Q_I(x,y)\widehat{g}(x_0,y),
+        \]
+        where $x_0$ is a reference template (for example $x_0=x$), and $Q_I$ is a linear operator that induces an invariant kernel, in the sense that.
+        \[
+            \langle u, Q_I(gx, hy)v\rangle = \langle u, Q_I(x, y) v\rangle.
+        \]
+    \end{example}
+
+    \paragraph{Equivariant Guassian Operator Process:}
+    Let $\circle$ define the 
+    
+    %\end{comment}
+
+    %\paragraph{Equivariant GPR:} Let $N=1$ for simplicity (one-shot learning). Suppose $\varphi_\ell$ is steerable with matrix $D(g)$ so that $g\varphi_\ell = \sum_{\ell'=1}^L D_{\ell,\ell'}(g)\varphi_{\ell'}$.
+    %\[
+    %    \langle \varphi_k, gY\rangle = \sum_{\ell',\ell=1}^L\langle \varphi_\ell, Y\rangle D_{\ell,\ell'}(g)\langle\varphi_k,\varphi_{\ell'}\rangle=\sum_{\ell=1}^L D_{\ell,k}(g) \langle \varphi_\ell, Y\rangle.
+    %\]
+    %We now compute the conditional expectation of $gY$ projected to the basis $\varphi_\ell$. To simplify, we will initially denote $\overline Y = \sum_{\ell,\ell'}Q^{-1}_{\ell,\ell'}\langle \varphi_{\ell'},Y(x_1)\rangle\varphi_{\ell}$. Then,:
+    %\begin{multline*}
+    %    \expectp{\langle \varphi_k, gY(x)\rangle\mid Y_1} = \sum_{\ell=1}^LD_{\ell,k}(g)\expectp{\langle \varphi_\ell, Y(x)\rangle\mid Y_1} =q(x,x_1)\left[ D_{\ell,k}(g)\varphi_\ell, \overline Y\right]
+    %\end{multline*}
+    %For equivariance, we must then have
+    %\[
+     %   \expectp{\langle \varphi_k, Y(gx)\rangle\mid Y_1} =q(gx,x_1)[\varphi_{k},\overline Y] = q(x,x_1)\left[D_{\ell,k}(g)\varphi_\ell, \overline Y\right].
+    %\]
+    %We want this independent of training data $\overline Y$, so we can replace $\overline Y$ with any arbitrary element $Y$ in the Hilbert space. A more general condition is that
+    %\[
+     %   q(x, x_1)[g^* Y, Y_1] = q(gx, x_1)[Y, Y_1], \quad \text{for all}\qquad x,x_1,Y,Y_1,g,
+    %\]
+    %where $g^*$ is the adjoint of $g$ in the sense that $\langle gY,Y_1\rangle =\langle Y,g^*Y_1\rangle$.
+    %Hence, a sufficient condition for input-output equivariance is that 
+    %\[
+    %q(gx,z)[h,f]=q(x,z)[gh,f].
+    %\]
+    %By symmetry of $q$, we infer $q(x,gz)[h, f]=q(x,z)[h, gf]$. We will refer to this property as bivariant.
+    \section{Data Generation:}
+    For data generation we convert samples from random curves $\{(t_i, z_i)\}_{i=1}^N$ to canonical Fourier parameterization, by which we mean solving the following optimization problem:
+    \[
+        \min_{c_k\in \mathbb{C}}\sum_{n=1}^N\left\|\sum_{k=-K}^K c_ke^{ikt_n} - z_n\right\|^2,\qquad \text{subject to}\qquad \left\|\sum_{k=-K}^K ikc_ke^{ikt}\right\|=1\quad \text{for all} \quad t
+    \]
+\end{document}
