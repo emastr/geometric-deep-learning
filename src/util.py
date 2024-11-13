@@ -1,4 +1,4 @@
-from jax import jit
+from jax import jit, vmap
 import jax.numpy as jnp
 from jax.numpy.fft import fft, ifft
 import numpy as np
@@ -8,10 +8,18 @@ import numpy as np
 def rotate(z, angle, shift=0):
     return jnp.exp(1j*angle)*jnp.roll(z, shift)
 
+
+def from_complex(z):
+    return jnp.array([z.real, z.imag])
+
 def rotate_fourier(c, angle, shift):
     K = (len(c)-1)//2
     ks = jnp.arange(-K, K+1)
     return jnp.exp(1j * angle - 1j * ks[:,None]*shift) * c
+
+def fourier_rotation_vector(angle, shift, K):
+    ks = jnp.arange(-K, K+1)
+    return jnp.exp(1j * angle - 1j * ks[:,None]*shift)
 
 def normalize(z):
     z = z - jnp.mean(z)
@@ -36,6 +44,7 @@ def fourier_eval(t, c, deriv=0):
     ks = jnp.arange(-K, K+1)
     E = jnp.exp(1j * ks[None, :] * t[:, None])
     c = (1j*ks[:, None])**deriv * c
+    
     return E @ c
 
 
@@ -110,8 +119,11 @@ def loop_erased_rw():
     return c
 
 ###  Alignment 
-def error(z1, z2):
-    return (jnp.mean(jnp.abs(z1-z2)**2))**0.5
+def error(z1, z2, normalize=True):
+    if normalize:
+        return (jnp.mean(jnp.abs(z1-z2)**2))**0.5 / jnp.mean(jnp.abs(z1)**2)**0.5
+    else:
+        return (jnp.mean(jnp.abs(z1-z2)**2))**0.5
 
 
 def distance(c0, c1, Nref=100):
@@ -132,7 +144,24 @@ def align_fourier(c0, c1, Nref=100):
     z1 = fourier_eval(t, c1)
     theta, m = align(z0, z1)
     return rotate_fourier(c0, theta, t[m-1])
-    
-    
-    
 
+def align_fourier_info(c0, c1, Nref=100):
+    t = jnp.linspace(0, 2*jnp.pi, Nref+1)[1:]
+    z0 = fourier_eval(t, c0)
+    z1 = fourier_eval(t, c1)
+    theta, m = align(z0, z1)
+    c21  = rotate_fourier(c0, theta, t[m-1])
+    d = error(fourier_eval(t, c1), fourier_eval(t, c21))
+    return d, theta.squeeze(), t[m-1]
+    
+    
+def is_physical(t, f):
+    xy = vmap(lambda t: from_complex(jnp.exp(1j*t)))(t)
+    dot = lambda x, y: jnp.sum(x*y)
+    return jnp.all(vmap(dot, (0, 0))(xy, f) > 0)
+
+def filter_unphysical(c, f):
+    t = jnp.linspace(0, 2*jnp.pi, f.shape[1]+1)[:-1]
+    is_physical_all = vmap(lambda fv: is_physical(t, fv), 0)(f)
+    return c[is_physical_all], f[is_physical_all]
+    
